@@ -128,27 +128,22 @@ class Element1D:
 
         return K, M_lumped
 
-class FEM1D:
+class ManualFEM1D:
     """
     TODO
     """
 
-    def __init__(self, n_elements, c, L=1.):
+    def __init__(self, mesh, c):
         """
         TODO
         """
-        if n_elements <= 0:
-            raise ValueError("n_elements (the number of elements) \
-                             should be greater than 0")
-
+        L = mesh[-1]
+        n_elements = len(mesh) - 1
         n_nodes = n_elements + 1
-        self.nodes = [Node(x, i)
-                      for i, x in enumerate(np.linspace(0, L, n_nodes))]
-        self.elements = [Element1D([self.nodes[i],
-                                    self.nodes[i + 1]],
-                                   L / n_elements
-                                   ) for i in range(n_elements)]
-        
+
+        self.nodes = [Node(x, i) for i, x in enumerate(mesh)]
+        self.elements = [Element1D([self.nodes[i], self.nodes[i + 1]], self.nodes[i + 1].x - self.nodes[i].x) for i in range(n_elements)]
+
         self.n_elements = n_elements
         self.n_nodes = n_nodes
 
@@ -187,26 +182,40 @@ class FEM1D:
         M = diags(M_v)
 
         return K, M
-    
+
+class FEM1D(ManualFEM1D):
+    """
+    TODO
+    """
+
+    def __init__(self, n_elements, c, L=1.):
+        """
+        TODO
+        """
+        if n_elements <= 0:
+            raise ValueError("n_elements (the number of elements) \
+                                should be greater than 0")
+
+        n_nodes = n_elements + 1
+        mesh = np.linspace(0, L, n_nodes)
+        super().__init__(mesh, c)
+
 class ClassicalFEM1DLeapFrog():
     """
     TODO
     """
 
-    def __init__(self, n_elements, dt, c, L=1., u0 = lambda x: 0., v0 = lambda x: 0.):
+    def __init__(self, n_elements_or_mesh, dt, c, L=1., u0 = lambda x: 0., v0 = lambda x: 0.):
         """
-        Initializes the FEM1D leapfrog solver.
-        
-        Parameters:
-        - n_elements : int, number of elements in the FEM mesh.
-        - dt : float, time step size.
-        - c : float, wave speed.
-        - L : float, length of the domain.
-        - u0 : callable, initial displacement function.
-        - v0 : callable, initial velocity function.
+        TODO
         """
 
-        self.fem = FEM1D(n_elements, c, L)
+        if isinstance(n_elements_or_mesh, int):
+            n_elements = n_elements_or_mesh
+            self.fem = FEM1D(n_elements, c, L)
+        else:
+            self.fem = ManualFEM1D(n_elements_or_mesh, c)
+
         self.dt = dt
         self.c = c
         self.L = L
@@ -249,71 +258,76 @@ class ClassicalFEM1DLeapFrog():
             solution.append(self.u.copy())
 
         return solution
-    
-class LocalTimeSteppingFEM1DLeapFrog():
-    """
-    TODO
-    """
-    pass
 
 if __name__ == "__main__":
-
     c = -1.0
     L = 4.0
     sigma = 0.4
-    number_of_elements = 2**5
-    dt = 1/number_of_elements
 
     def u0(x, sigma=1., L=1.):
         return 1./(np.sqrt(2*np.pi)*sigma) * np.exp(-(x - L/2)**2/(2*sigma**2))
 
-    cf1dp = ClassicalFEM1DLeapFrog(n_elements=number_of_elements, dt=dt, c=c, L=L, u0=lambda x : u0(x, sigma, L), v0=lambda x: c)
+    # we build a classical FEM1d and plot the nodes
+    h = 0.1
+    dt = 0.01 / 2
+    number_of_elements = int(L/h)
+    fem1d = FEM1D(n_elements=number_of_elements, c=c, L=L)
+    
+    mesh = []
+    p = 3
+    for i, x in enumerate(np.arange(0, L + h, h)):
+        mesh.append(x)
+        if 1 <= x < 1+10*h:
+            for j in range(1,p):
+                mesh.append(x + j*h/p)
 
-    temp = cf1dp.u_previous.copy()
+    mfem1d = ManualFEM1D(mesh, c)
 
-    # plot u and u_previous
     fig, ax = plt.subplots()
-    ax.plot([node.x for node in cf1dp.fem.nodes], cf1dp.u, label='u')
-    ax.plot([node.x for node in cf1dp.fem.nodes], cf1dp.u_previous, label='u_previous')
-    ax.legend()
+    ax.plot([node.x for node in fem1d.nodes], np.zeros(len(fem1d.nodes)), 'o', alpha=0.5, label="fem1d")
+    ax.plot([node.x for node in mfem1d.nodes], np.zeros(len(mfem1d.nodes))+1, 'o', alpha=0.5, label="mfem1d")
+    ax.set_title('FEM nodes')
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
     plt.show()
 
-    # do one step
-    cf1dp.step()
+    # Solve the wave equation using the classical FEM1DLeapFrog on both meshes
+    cf1dp = ClassicalFEM1DLeapFrog(n_elements_or_mesh=number_of_elements, dt=dt, c=c, L=L, u0=lambda x : u0(x, sigma, L), v0=lambda x: c)
+    mcf1dp = ClassicalFEM1DLeapFrog(n_elements_or_mesh=mesh, dt=dt, c=c, L=L, u0=lambda x : u0(x, sigma, L), v0=lambda x: c)
 
-    # plot u and u_previous and u_previous_previous (temp)
-
-    fig, ax = plt.subplots()
-    ax.plot([node.x for node in cf1dp.fem.nodes], cf1dp.u, label='u')
-    ax.plot([node.x for node in cf1dp.fem.nodes], cf1dp.u_previous, label='u_previous')
-    ax.plot([node.x for node in cf1dp.fem.nodes], temp, label='u_previous_previous')
-    ax.legend()
-    plt.show()
-
-    # solve the problem for 32 seconds and make an animation of the solution
-    T = 10.
+    T = abs(L/c) * 64
     solution = cf1dp.solve(T)
+    msolution = mcf1dp.solve(T)
 
+    # make an animation of both solutions on the same plot
     fig, ax = plt.subplots()
     ax.set_xlim(0, L)
-    ax.set_ylim(-0.5, 1.5)
-    line, = ax.plot([], [], lw=2)
+    ax.set_ylim(-0.5, 1.5 * 2)
+    line1, = ax.plot([], [], lw=2, label='Classical FEM1D')
+    line2, = ax.plot([], [], lw=2, label='Manual FEM1D')
+    points1, = ax.plot([], [], 'o')
+    points2, = ax.plot([], [], 'o')
     ax.set_title('Wave equation solution')
     ax.set_xlabel('x')
     ax.set_ylabel('u')
+    ax.legend()
 
     def init():
-        line.set_data([], [])
-        return line,
+        line1.set_data([], [])
+        line2.set_data([], [])
+        points1.set_data([], [])
+        points2.set_data([], [])
+        return line1, line2, points1, points2
 
     def animate(i):
-        line.set_data([node.x for node in cf1dp.fem.nodes], solution[i])
-        return line,
+        line1.set_data([node.x for node in cf1dp.fem.nodes], solution[i])
+        line2.set_data([node.x for node in mcf1dp.fem.nodes], msolution[i] + 1)
+        points1.set_data([node.x for node in cf1dp.fem.nodes], solution[i])
+        points2.set_data([node.x for node in mcf1dp.fem.nodes], msolution[i] + 1)
+        return line1, line2, points1, points2
 
     anim = animation.FuncAnimation(fig, animate, init_func=init,
-                                      frames=len(solution), interval=dt*1000, blit=True)
-    
+                                        frames=len(solution), interval=1, blit=True)
+
     plt.show()
     plt.close()
-    # Save the animation as a GIF
-    anim.save('wave_solution.gif', writer='imagemagick', fps=int(1/dt))
