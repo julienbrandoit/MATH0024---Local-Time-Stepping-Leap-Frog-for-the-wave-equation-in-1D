@@ -245,8 +245,7 @@ class ClassicalFEM1DLeapFrog():
         self.L = L
 
         self.u = np.array([u0(node.x) for node in self.fem.nodes])
-        v = np.array([v0(node.x) for node in self.fem.nodes])
-        self.u_previous = np.array([u0(node.x + v[i] * dt) for i, node in enumerate(self.fem.nodes)])
+        self.u_previous = np.array([u0(node.x + dt * v0(node.x)) for node in self.fem.nodes])
 
         K, M = self.fem.assemble()
         M = M.sqrt()
@@ -328,9 +327,8 @@ class LocalTimeSteppingFEM1DLeapFrog():
         self.c = c
 
         self.u = np.array([u0(node.x) for node in self.fem.nodes])
-        v = np.array([v0(node.x) for node in self.fem.nodes])
-        self.u_previous = np.array([u0(node.x + v[i] * dt) for i, node in enumerate(self.fem.nodes)])
-
+        self.u_previous = np.array([u0(node.x + dt * v0(node.x)) for node in self.fem.nodes])
+        
         K, M = self.fem.assemble()
         M = M.sqrt()
         self.M_bar_sqrt_inv = M.copy().power(-1)
@@ -381,7 +379,7 @@ class LocalTimeSteppingFEM1DLeapFrog():
         z_mp_c = z_1p_c
         z_mp_f = z_1p_f
 
-        for _ in range(1, self.p): # we need to perform steps m = 1, 2, ..., p-1 to update z_(m+1)/p
+        for _ in range(2, self.p + 1): # we need to perform steps m = 2 to p
             temp_c = z_mp_c.copy()
             temp_f = z_mp_f.copy()
 
@@ -398,8 +396,8 @@ class LocalTimeSteppingFEM1DLeapFrog():
         temp_c = self.z_c.copy()
         temp_f = self.z_f.copy()
 
-        self.z_c = -z_mp_c + 2*z_mp_c
-        self.z_f = -z_mp_f + 2*z_mp_f
+        self.z_c = -self.z_previous_c + 2 * z_mp_c
+        self.z_f = -self.z_previous_f + 2 * z_mp_f
 
         self.z_previous_c = temp_c
         self.z_previous_f = temp_f
@@ -525,13 +523,14 @@ if __name__ == "__main__":
     c = -1.0
     L = 4.0
     sigma = 0.4
-    T = 9.0
+    T = 90.0
 
     def u0(x, sigma=1., L=1.):
         return 1./(np.sqrt(2*np.pi)*sigma) * np.exp(-(x - L/2)**2/(2*sigma**2))
 
     def v0(x):
         return c
+    
     if False:
         # == We define both the manual and classical FEM models ==
         # We generate a figure to show the mesh and the initial condition
@@ -626,8 +625,8 @@ if __name__ == "__main__":
 
     h_coarse = 0.1
     n_elements_coarse = int(L/h_coarse)
-    p = 3
-    n_elements_refined = 2
+    p = 10
+    n_elements_refined = 10
 
     refined_mesh = []
     mask_is_fine_node = []
@@ -668,22 +667,24 @@ if __name__ == "__main__":
     plt.show()
 
     # We define the local time stepping problem
-    problem = LocalTimeSteppingFEM1DLeapFrog(refined_mesh, mask_is_fine_node, dt=0.1, p=p, c=c, u0=lambda x: u0(x, sigma, L), v0=v0)
-    
+    problem = LocalTimeSteppingFEM1DLeapFrog(refined_mesh, mask_is_fine_node, dt=0.005*p, p=p, c=c, u0=lambda x: u0(x, sigma, L), v0=v0)
+    problem2 = ClassicalFEM1DLeapFrog(n_elements_or_mesh=refined_mesh, dt=0.005, c=c, L=L, u0=lambda x: u0(x, sigma, L), v0=v0)
     # first do a static plot of u and u_previous
     fig, ax = plt.subplots(figsize=(10, 5))
 
     line, = ax.plot([node.x for node in problem.fem.nodes], problem.u, marker="o", markersize=5, linewidth=2)
     line_previous, = ax.plot([node.x for node in problem.fem.nodes], problem.u_previous, marker="o", markersize=5, linewidth=2)
+    line2, = ax.plot([node.x for node in problem2.fem.nodes], problem2.u + 1, marker="o", markersize=5, linewidth=2)
+    line2_previous, = ax.plot([node.x for node in problem2.fem.nodes], problem2.u_previous + 1, marker="o", markersize=5, linewidth=2)
 
     ax.set_xlim(0, L)
-    ax.set_ylim(-0.1, 1.5)
+    ax.set_ylim(-0.1, 2.5)
     ax.xaxis.set_tick_params(labelsize=15)
     ax.yaxis.set_tick_params(labelsize=15)
     ax.set_xlabel(r"$x$", fontsize=20)
     ax.set_ylabel(r"$u$", fontsize=20)
 
-    plt.legend(["$u$", "$u_{previous}$"], fontsize=15)
+    plt.legend(["$u$", "$u_{previous}$", "$u_{problem2}$", "$u_{previous, problem2}$"], fontsize=15)
     plt.show()
 
     # plot all the matrices
@@ -722,25 +723,37 @@ if __name__ == "__main__":
     cbar.set_label('Matrix value', fontsize=15)
     plt.show()
 
-    #problem = ClassicalFEM1DLeapFrog(n_elements_or_mesh=refined_mesh, dt=0.01, c=c, L=L, u0=lambda x: u0(x, sigma, L), v0=v0)
-
     # We compute the solution
-    solution = problem.solve(T*100)
+    solution = problem.solve(T, t_eval = np.arange(0, T, 0.1))
+    solution2 = problem2.solve(T, t_eval = np.arange(0, T, 0.1))
 
-    # make an animation
-    fig, ax = plt.subplots(figsize=(10, 5))
+    plt.show()
+    # make an animation with the difference between both solutions
+    fig, ax = plt.subplots(2, 1, figsize=(10, 10))
 
-    line, = ax.plot([node.x for node in problem.fem.nodes], solution[0], marker="o", markersize=5, linewidth=2)
-    ax.set_xlim(0, L)
-    ax.set_ylim(-0.1, 1.5)
-    ax.xaxis.set_tick_params(labelsize=15)
-    ax.yaxis.set_tick_params(labelsize=15)
-    ax.set_xlabel(r"$x$", fontsize=20)
-    ax.set_ylabel(r"$u$", fontsize=20)
+    line, = ax[0].plot([node.x for node in problem.fem.nodes], solution[0], marker="o", markersize=5, linewidth=2)
+    line2, = ax[0].plot([node.x for node in problem2.fem.nodes], solution2[0] + 1, marker="o", markersize=5, linewidth=2)
+    line_diff, = ax[1].plot([node.x for node in problem.fem.nodes], solution[0] - solution2[0], marker="o", markersize=5, linewidth=2)
+
+    ax[0].set_xlim(0, L)
+    ax[0].set_ylim(-0.1, 2.5)
+    ax[0].xaxis.set_tick_params(labelsize=15)
+    ax[0].yaxis.set_tick_params(labelsize=15)
+    ax[0].set_xlabel(r"$x$", fontsize=20)
+    ax[0].set_ylabel(r"$u$", fontsize=20)
+
+    ax[1].set_xlim(0, L)
+    ax[1].set_ylim(-0.1, 0.1)
+    ax[1].xaxis.set_tick_params(labelsize=15)
+    ax[1].yaxis.set_tick_params(labelsize=15)
+    ax[1].set_xlabel(r"$x$", fontsize=20)
+    ax[1].set_ylabel(r"$u_{diff}$", fontsize=20)
 
     def update(frame):
         line.set_ydata(solution[frame])
-        return line,
+        line2.set_ydata(solution2[frame])
+        line_diff.set_ydata(solution[frame] - solution2[frame])
+        return line, line2, line_diff
 
-    anim = FuncAnimation(fig, update, frames=len(solution), blit=True, interval=1)
+    anim = FuncAnimation(fig, update, frames=len(solution), blit=True, interval=50)
     plt.show()
