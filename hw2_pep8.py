@@ -25,6 +25,78 @@ sns.set_context("paper")
 sns_color = "Spectral"
 sns.set_palette(sns_color)
 
+import matplotlib as mpl
+
+latex_preamble = r"\usepackage{amsmath}"
+mpl.rcParams.update({
+    # Use TeX for rendering text
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Times New Roman"],  # Replace with your preferred serif font if needed
+    "text.latex.preamble" : latex_preamble,
+    
+    # Axes settings
+    "axes.titlesize": 14,     # Font size for axes titles
+    "axes.labelsize": 12,     # Font size for axes labels
+    
+    # Tick settings
+    "xtick.labelsize": 10,    # Font size for x-axis tick labels
+    "ytick.labelsize": 10,    # Font size for y-axis tick labels
+    
+    # Legend settings
+    "legend.fontsize": 10,    # Font size for legend
+    
+    # Figure settings
+    "figure.figsize": (16, 8), # Default figure size (width, height) in inches
+    "figure.dpi": 100,        # Dots per inch
+    
+    # Lines
+    "lines.linewidth": 2,     # Line width
+    "lines.markersize": 6,    # Marker size
+    
+    # Grid settings
+    "grid.color": "gray",     # Grid color
+    "grid.linestyle": "--",   # Grid line style
+    "grid.linewidth": 0.5,    # Grid line width
+    "grid.alpha": 0.7         # Grid transparency
+})
+
+
+# == Utility functions ==
+
+def scale_in_place_csr_matrix(K, M_bar_sqrt_inv):
+    """
+    Do the A = M_bar_sqrt_inv @ K @ M_bar_sqrt_inv in place. Leveraging the CSR format and the fact that
+    the matrix M_bar_sqrt_inv is diagonal.
+
+    Parameters:
+    - K : csr_matrix, the stiffness matrix.
+    - M_bar_sqrt_inv : csr_matrix, must be a diagonal matrix.
+    """
+
+    """
+    Since M_bar_sqrt_inv is a diagonal matrix, doing M_bar_sqrt_inv @ K @ M_bar_sqrt_inv is equivalent to scaling each non-zero element of K
+    by M_bar_sqrt_inv[i, i] * M_bar_sqrt_inv[j, j] where i and j are the row and column indices of the non-zero element in K.
+
+    In order to be really memory efficient, we will modify the data attribute of the csr_matrix K in place instead of creating a new matrix
+    and then discarding the K.
+    """
+
+    diag_M = M_bar_sqrt_inv.data.squeeze()
+    
+    # Iterate over all the rows of the matrix K
+    for i in range(K.shape[0]):
+        # Get the indices of the non-zero elements in the i-th row
+        start_idx = K.indptr[i]
+        end_idx = K.indptr[i + 1]
+
+        # Loop over the non-zero elements of the i-th row
+        for k in range(start_idx, end_idx):
+            j = K.indices[k]
+            K.data[k] *= diag_M[i] * diag_M[j]
+
+    return K # K is modified in place
+    
 # == FEM1D implementation ==
 
 
@@ -337,11 +409,11 @@ class ClassicalFEM1DLeapFrog():
 
         K, M = self.fem.assemble()
         M = M.sqrt()
-        self.M_bar_sqrt_inv = M.copy().power(-1)
-        self.A = self.M_bar_sqrt_inv @ K @ self.M_bar_sqrt_inv
-
         self.z = M @ self.u
         self.z_previous = M @ self.u_previous
+
+        self.M_bar_sqrt_inv = M.power(-1)
+        self.A = scale_in_place_csr_matrix(K, self.M_bar_sqrt_inv)
 
     def step(self, update_u=True):
         """
@@ -459,8 +531,12 @@ class LocalTimeSteppingFEM1DLeapFrog():
 
         K, M = self.fem.assemble()
         M = M.sqrt()
-        self.M_bar_sqrt_inv = M.copy().power(-1)
-        A = self.M_bar_sqrt_inv @ K @ self.M_bar_sqrt_inv
+
+        z = M @ self.u
+        z_previous = M @ self.u_previous
+
+        self.M_bar_sqrt_inv = M.power(-1)
+        A = scale_in_place_csr_matrix(K, self.M_bar_sqrt_inv)
 
         self.coarse_idx = [
             node.global_idx for node in self.fem.nodes if not mask_is_fine_node[node.global_idx]]
@@ -471,9 +547,6 @@ class LocalTimeSteppingFEM1DLeapFrog():
         self.A_cf = A[self.coarse_idx, :][:, self.fine_idx]
         self.A_fc = A[self.fine_idx, :][:, self.coarse_idx]
         self.A_ff = A[self.fine_idx, :][:, self.fine_idx]
-
-        z = M @ self.u
-        z_previous = M @ self.u_previous
 
         self.z_c = z[self.coarse_idx]
         self.z_f = z[self.fine_idx]
@@ -973,9 +1046,9 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(figsize=(10, 3))
 
     ax.plot(refined_mesh[mask_is_fine_node], np.zeros(len(refined_mesh))[
-            mask_is_fine_node], 'ro', markersize=10, alpha=0.5, label=r"Fine nodes $\mathbf{z}_F$")
+            mask_is_fine_node], 'ro', markersize=10, alpha=0.5, label=r"Fine nodes $\mathbf{z}_{\text{F}}$")
     ax.plot(refined_mesh[~mask_is_fine_node], np.zeros(len(refined_mesh))[
-            ~mask_is_fine_node], 'bo', markersize=10, alpha=0.5, label=r"Coarse nodes $\mathbf{z}_C$")
+            ~mask_is_fine_node], 'bo', markersize=10, alpha=0.5, label=r"Coarse nodes $\mathbf{z}_{\text{C}}$")
 
     ax.set_xlim(0, L)
     ax.set_ylim(-0.1, 0.1)
