@@ -72,6 +72,9 @@ def scale_in_place_csr_matrix(K, M_bar_sqrt_inv):
     Parameters:
     - K : csr_matrix, the stiffness matrix.
     - M_bar_sqrt_inv : csr_matrix, must be a diagonal matrix.
+
+    Returns:
+    - csr_matrix, the modified stiffness matrix K.
     """
 
     """
@@ -84,16 +87,9 @@ def scale_in_place_csr_matrix(K, M_bar_sqrt_inv):
 
     diag_M = M_bar_sqrt_inv.data.squeeze()
 
-    # Iterate over all the rows of the matrix K
-    for i in range(K.shape[0]):
-        # Get the indices of the non-zero elements in the i-th row
-        start_idx = K.indptr[i]
-        end_idx = K.indptr[i + 1]
-
-        # Loop over the non-zero elements of the i-th row
-        for k in range(start_idx, end_idx):
-            j = K.indices[k]
-            K.data[k] *= diag_M[i] * diag_M[j]
+    # Iterate over all the non-zero elements of K using vectorized operations
+    row_indices, col_indices = K.nonzero()
+    K.data *= diag_M[row_indices] * diag_M[col_indices]
 
     return K  # K is modified in place
 
