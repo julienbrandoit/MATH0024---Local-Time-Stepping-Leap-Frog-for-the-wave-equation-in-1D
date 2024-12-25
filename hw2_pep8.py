@@ -714,10 +714,18 @@ def compare_time_evolution(
     arrow_x = 0.92
 
     arrow = FancyArrow(
-        x=arrow_x, y=arrow_start_y, dx=0, dy=arrow_end_y - arrow_start_y,
-        width=0.001, length_includes_head=True, head_width=0.004, head_length=0.015,
-        color="black", transform=fig.transFigure, clip_on=False
-    )
+        x=arrow_x,
+        y=arrow_start_y,
+        dx=0,
+        dy=arrow_end_y -
+        arrow_start_y,
+        width=0.001,
+        length_includes_head=True,
+        head_width=0.004,
+        head_length=0.015,
+        color="black",
+        transform=fig.transFigure,
+        clip_on=False)
     fig.patches.append(arrow)
 
     for i, axis in enumerate(ax[:, -1]):
@@ -808,10 +816,18 @@ def plot_time_evolution_for_single_dt(
     arrow_x = 0.92
 
     arrow = FancyArrow(
-        x=arrow_x, y=arrow_start_y, dx=0, dy=arrow_end_y - arrow_start_y,
-        width=0.001, length_includes_head=True, head_width=0.004, head_length=0.015,
-        color="black", transform=fig.transFigure, clip_on=False
-    )
+        x=arrow_x,
+        y=arrow_start_y,
+        dx=0,
+        dy=arrow_end_y -
+        arrow_start_y,
+        width=0.001,
+        length_includes_head=True,
+        head_width=0.004,
+        head_length=0.015,
+        color="black",
+        transform=fig.transFigure,
+        clip_on=False)
     fig.patches.append(arrow)
 
     for i, axis in enumerate(ax):
@@ -1041,10 +1057,20 @@ if __name__ == "__main__":
     # Plot mesh with color coding for fine nodes
     fig, ax = plt.subplots(figsize=(10, 3))
 
-    ax.plot(refined_mesh[mask_is_fine_node], np.zeros(len(refined_mesh))[
-            mask_is_fine_node], 'ro', markersize=10, alpha=0.5, label=r"Fine nodes $\mathbf{z}_{\text{F}}$")
-    ax.plot(refined_mesh[~mask_is_fine_node], np.zeros(len(refined_mesh))[
-            ~mask_is_fine_node], 'bo', markersize=10, alpha=0.5, label=r"Coarse nodes $\mathbf{z}_{\text{C}}$")
+    ax.plot(
+        refined_mesh[mask_is_fine_node],
+        np.zeros(
+            len(refined_mesh))[mask_is_fine_node],
+        'ro',
+        markersize=10,
+        alpha=0.5,
+        label=r"Fine nodes $\mathbf{z}_{\text{F}}$")
+    ax.plot(refined_mesh[~mask_is_fine_node],
+            np.zeros(len(refined_mesh))[~mask_is_fine_node],
+            'bo',
+            markersize=10,
+            alpha=0.5,
+            label=r"Coarse nodes $\mathbf{z}_{\text{C}}$")
 
     ax.set_xlim(0, L)
     ax.set_ylim(-0.1, 0.1)
