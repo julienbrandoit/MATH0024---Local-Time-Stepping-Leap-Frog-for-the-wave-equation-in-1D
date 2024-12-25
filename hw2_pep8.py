@@ -11,6 +11,7 @@ of the code has been written by me. Only the function with clear references
 to AI assistance have been generated with the help of ChatGPT or GitHub Copilot.
 """
 
+import matplotlib as mpl
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,35 +26,34 @@ sns.set_context("paper")
 sns_color = "Spectral"
 sns.set_palette(sns_color)
 
-import matplotlib as mpl
-
 latex_preamble = r"\usepackage{amsmath}"
 mpl.rcParams.update({
     # Use TeX for rendering text
     "text.usetex": True,
     "font.family": "serif",
-    "font.serif": ["Times New Roman"],  # Replace with your preferred serif font if needed
-    "text.latex.preamble" : latex_preamble,
-    
+    # Replace with your preferred serif font if needed
+    "font.serif": ["Times New Roman"],
+    "text.latex.preamble": latex_preamble,
+
     # Axes settings
     "axes.titlesize": 14,     # Font size for axes titles
     "axes.labelsize": 12,     # Font size for axes labels
-    
+
     # Tick settings
     "xtick.labelsize": 10,    # Font size for x-axis tick labels
     "ytick.labelsize": 10,    # Font size for y-axis tick labels
-    
+
     # Legend settings
     "legend.fontsize": 10,    # Font size for legend
-    
+
     # Figure settings
-    "figure.figsize": (16, 8), # Default figure size (width, height) in inches
+    "figure.figsize": (16, 8),  # Default figure size (width, height) in inches
     "figure.dpi": 100,        # Dots per inch
-    
+
     # Lines
     "lines.linewidth": 2,     # Line width
     "lines.markersize": 6,    # Marker size
-    
+
     # Grid settings
     "grid.color": "gray",     # Grid color
     "grid.linestyle": "--",   # Grid line style
@@ -83,7 +83,7 @@ def scale_in_place_csr_matrix(K, M_bar_sqrt_inv):
     """
 
     diag_M = M_bar_sqrt_inv.data.squeeze()
-    
+
     # Iterate over all the rows of the matrix K
     for i in range(K.shape[0]):
         # Get the indices of the non-zero elements in the i-th row
@@ -95,8 +95,8 @@ def scale_in_place_csr_matrix(K, M_bar_sqrt_inv):
             j = K.indices[k]
             K.data[k] *= diag_M[i] * diag_M[j]
 
-    return K # K is modified in place
-    
+    return K  # K is modified in place
+
 # == FEM1D implementation ==
 
 
